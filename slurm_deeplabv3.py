@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from time import time
 import tensorflow as tf
-import albumentations as A
+# import albumentations as A
 import matplotlib.pyplot as plt
 import tensorflow.keras.backend as K
 from functools import partial
@@ -46,7 +46,7 @@ if MODEL_CLASSES == TOTAL_CLASSES:
     MODEL_CLASSES = MODEL_CLASSES[:-1]
     ALL_CLASSES = True
 
-BATCH_SIZE = 24
+BATCH_SIZE = 12
 N_CLASSES = 16
 HEIGHT = 704
 WIDTH = 704
@@ -170,6 +170,10 @@ with mirrored_strategy.scope():
         (tf.float32, tf.float32),
         (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
     ).batch(BATCH_SIZE, drop_remainder=True)
+    options = tf.data.Options()
+    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+    TrainSet = TrainSet.with_options(options)
+    ValSet = ValSet.with_options(options)
 
     train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
     val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
