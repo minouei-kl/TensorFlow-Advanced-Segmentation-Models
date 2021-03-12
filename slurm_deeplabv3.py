@@ -58,9 +58,15 @@ WWO_AUG = False # train data with and without augmentation
 ################################################################################
 # Data Generator
 ################################################################################
+def get_filtered(dir):
+    included_extensions = ['jpg','jpeg', 'png',]
+    file_names = [fn for fn in os.listdir(dir)
+                if any(fn.endswith(ext) for ext in included_extensions)]
+    return sorted(file_names)
+
 def create_image_label_path_generator(images_dir, masks_dir):
-    ids = sorted(os.listdir(images_dir))
-    mask_ids = sorted(os.listdir(masks_dir))
+    ids = get_filtered(images_dir)
+    mask_ids = get_filtered(masks_dir)
 
     images_fps = [os.path.join(images_dir, image_id) for image_id in ids]
     masks_fps = [os.path.join(masks_dir, image_id) for image_id in mask_ids]
@@ -133,8 +139,18 @@ ValidationSet =partial(DataGenerator,
     augmentation=get_validation_augmentation(height=HEIGHT, width=WIDTH),
 )
 
+TrainSet = tf.data.Dataset.from_generator(
+    TrainSetwoAug,
+    (tf.float32, tf.float32),
+    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+).batch(BATCH_SIZE, drop_remainder=True)
 
-BACKBONE_TRAINABLE = True
+ValSet = tf.data.Dataset.from_generator(
+    ValidationSet,
+    (tf.float32, tf.float32),
+    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+).batch(BATCH_SIZE, drop_remainder=True)
+
 
 # mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
 #     cluster_resolver=tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000),
@@ -142,33 +158,22 @@ BACKBONE_TRAINABLE = True
 # )
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
-communication_options = tf.distribute.experimental.CommunicationOptions(
-            implementation=tf.distribute.experimental.CommunicationImplementation.NCCL)
-mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver, 
-                                                                communication_options=communication_options)
+# communication_options = tf.distribute.experimental.CommunicationOptions(
+#             implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver )
+                                                        # ,communication_options=communication_options)
+
 
 
 with mirrored_strategy.scope():
     print('----------------------mirrored_strategy.num_replicas_in_sync')
     print(mirrored_strategy.num_replicas_in_sync)
 
-    TrainSet = tf.data.Dataset.from_generator(
-        TrainSetwoAug,
-        (tf.float32, tf.float32),
-        (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-    ).batch(BATCH_SIZE, drop_remainder=True)
-
-    ValSet = tf.data.Dataset.from_generator(
-        ValidationSet,
-        (tf.float32, tf.float32),
-        (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-    ).batch(BATCH_SIZE, drop_remainder=True)
-
     train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
     val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
 
     base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
-    model = tasm.DeepLabV3plus(n_classes=N_CLASSES, base_model=base_model, output_layers=layers, backbone_trainable=BACKBONE_TRAINABLE)
+    model = tasm.DeepLabV3plus(n_classes=N_CLASSES, base_model=base_model, output_layers=layers, backbone_trainable=True)
 
     for layer in model.layers:
         layer.trainable = True
@@ -183,10 +188,11 @@ with mirrored_strategy.scope():
         loss=categorical_focal_dice_loss,
         metrics=metrics,
     )
-    model.run_eagerly = True
+    model.run_eagerly = False
 
 callbacks = [
-             tf.keras.callbacks.ModelCheckpoint("DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
+            #  tf.keras.callbacks.ModelCheckpoint("DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
+             tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
              tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
              tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
 ]
@@ -196,7 +202,7 @@ steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 history = model.fit(
     train_dist_dataset,
     steps_per_epoch=steps_per_epoch,
-    epochs=1,
+    epochs=2,
     callbacks=callbacks,
     validation_data=val_dist_dataset,
     validation_steps=len(os.listdir(x_valid_dir)),
