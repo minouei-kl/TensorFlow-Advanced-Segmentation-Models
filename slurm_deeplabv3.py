@@ -198,8 +198,8 @@ with mirrored_strategy.scope():
     model.run_eagerly = False
 
 callbacks = [
-            #  tf.keras.callbacks.ModelCheckpoint("DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
-             tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
+             tf.keras.callbacks.ModelCheckpoint("DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
+            #  tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
              tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
              tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
 ]
