@@ -136,12 +136,22 @@ ValidationSet =partial(DataGenerator,
 
 BACKBONE_TRAINABLE = True
 
-mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
-    cluster_resolver=tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000),
-    communication=tf.distribute.experimental.CollectiveCommunication.NCCL,
-)
+# mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
+#     cluster_resolver=tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000),
+#     communication=tf.distribute.experimental.CollectiveCommunication.NCCL,
+# )
+
+slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
+communication_options = tf.distribute.experimental.CommunicationOptions(
+            implementation=tf.distribute.experimental.CommunicationImplementation.NCCL)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver, 
+                                                                communication_options=communication_options)
+
 
 with mirrored_strategy.scope():
+    print('----------------------mirrored_strategy.num_replicas_in_sync')
+    print(mirrored_strategy.num_replicas_in_sync)
+
     TrainSet = tf.data.Dataset.from_generator(
         TrainSetwoAug,
         (tf.float32, tf.float32),
