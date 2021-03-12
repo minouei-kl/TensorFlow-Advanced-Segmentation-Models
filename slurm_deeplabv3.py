@@ -141,17 +141,6 @@ ValidationSet =partial(DataGenerator,
     augmentation=get_validation_augmentation(height=HEIGHT, width=WIDTH),
 )
 
-TrainSet = tf.data.Dataset.from_generator(
-    TrainSetwoAug,
-    (tf.float32, tf.float32),
-    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-).batch(BATCH_SIZE, drop_remainder=True)
-
-ValSet = tf.data.Dataset.from_generator(
-    ValidationSet,
-    (tf.float32, tf.float32),
-    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-).batch(BATCH_SIZE, drop_remainder=True)
 
 
 # mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
@@ -170,6 +159,17 @@ mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=s
 with mirrored_strategy.scope():
     print('----------------------mirrored_strategy.num_replicas_in_sync')
     print(mirrored_strategy.num_replicas_in_sync)
+    TrainSet = tf.data.Dataset.from_generator(
+        TrainSetwoAug,
+        (tf.float32, tf.float32),
+        (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+    ).batch(BATCH_SIZE, drop_remainder=True)
+
+    ValSet = tf.data.Dataset.from_generator(
+        ValidationSet,
+        (tf.float32, tf.float32),
+        (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+    ).batch(BATCH_SIZE, drop_remainder=True)
 
     train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
     val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
