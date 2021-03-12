@@ -13,6 +13,8 @@ DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
 x_train_dir = os.path.join(DATA_DIR, 'images/train')
 y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
+x_train_dir = os.path.join(DATA_DIR, 'images/val')
+y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 x_valid_dir = os.path.join(DATA_DIR, 'images/val')
 y_valid_dir = os.path.join(DATA_DIR, 'annotations/val')
