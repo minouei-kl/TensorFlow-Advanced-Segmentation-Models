@@ -28,8 +28,9 @@ y_test_dir = os.path.join(DATA_DIR, 'annotations/val')
 def get_validation_augmentation(height, width):
     """Add paddings to make image shape divisible by 32"""
     test_transform = [
+        A.LongestMaxSize(max_size=height),
         A.PadIfNeeded(height, width),
-        A.Resize(height, width, always_apply=True)
+        # A.Resize(height, width, always_apply=True)
     ]
     return A.Compose(test_transform)
 
