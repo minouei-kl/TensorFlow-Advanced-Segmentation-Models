@@ -1,4 +1,5 @@
 numpy
 matplotlib
+scikit-image
 albumentations
 opencv-python-headless
