@@ -1,6 +1,6 @@
-from keras.layers import Activation, Conv2D, MaxPooling2D, BatchNormalization, Input,\
+from tensorflow.python.keras.layers import Activation, Conv2D, MaxPooling2D, BatchNormalization, Input,\
     DepthwiseConv2D, add,Dropout, AveragePooling2D, Concatenate, Layer, InputSpec
-from keras.models import Model
+from tensorflow.python.keras.models import Model
 import tensorflow as tf
 from tensorflow.python.keras.utils import conv_utils
 
