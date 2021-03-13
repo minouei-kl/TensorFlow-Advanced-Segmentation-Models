@@ -47,7 +47,7 @@ if MODEL_CLASSES == TOTAL_CLASSES:
     MODEL_CLASSES = MODEL_CLASSES[:-1]
     ALL_CLASSES = True
 
-BATCH_SIZE = 12
+BATCH_SIZE = 24
 N_CLASSES = 16
 HEIGHT = 704
 WIDTH = 704
@@ -150,10 +150,10 @@ ValidationSet =partial(DataGenerator,
 # )
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
-# communication_options = tf.distribute.experimental.CommunicationOptions(
-#             implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
-mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver )
-                                                        # ,communication_options=communication_options)
+communication_options = tf.distribute.experimental.CommunicationOptions(
+            implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver
+                                                        ,communication_options=communication_options)
 
 
 
@@ -185,7 +185,7 @@ with mirrored_strategy.scope():
 
     for layer in model.layers:
         layer.trainable = True
-        print(layer.name + ": " + str(layer.trainable))
+        # print(layer.name + ": " + str(layer.trainable))
 
     opt = tf.keras.optimizers.SGD(learning_rate=0.1, momentum=0.9)
     metrics = [tasm.metrics.IOUScore(threshold=0.5)]
@@ -199,7 +199,7 @@ with mirrored_strategy.scope():
     model.run_eagerly = False
 
 callbacks = [
-             tf.keras.callbacks.ModelCheckpoint("DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
+             tf.keras.callbacks.ModelCheckpoint("new/DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
             #  tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
              tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
              tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
