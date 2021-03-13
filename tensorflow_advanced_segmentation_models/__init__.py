@@ -16,4 +16,4 @@ from .models.DeepLab import DeepLab
 from .models.DeepLabV3 import DeepLabV3
 from .models.ASPOCRNet import ASPOCRNet
 from .models.SpatialOCRNet import SpatialOCRNet
-from .models.DeepLabV3plus import DeepLabV3plus
+from .models.DeepLabV3plus import *

@@ -157,30 +157,31 @@ mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=s
 
 
 
+
+print('----------------------mirrored_strategy.num_replicas_in_sync')
+print(mirrored_strategy.num_replicas_in_sync)
+TrainSet = tf.data.Dataset.from_generator(
+    TrainSetwoAug,
+    (tf.float32, tf.float32),
+    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+).batch(BATCH_SIZE, drop_remainder=True)
+
+ValSet = tf.data.Dataset.from_generator(
+    ValidationSet,
+    (tf.float32, tf.float32),
+    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+).batch(BATCH_SIZE, drop_remainder=True)
+options = tf.data.Options()
+options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+TrainSet = TrainSet.with_options(options)
+ValSet = ValSet.with_options(options)
+
+train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
+val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
+
 with mirrored_strategy.scope():
-    print('----------------------mirrored_strategy.num_replicas_in_sync')
-    print(mirrored_strategy.num_replicas_in_sync)
-    TrainSet = tf.data.Dataset.from_generator(
-        TrainSetwoAug,
-        (tf.float32, tf.float32),
-        (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-    ).batch(BATCH_SIZE, drop_remainder=True)
-
-    ValSet = tf.data.Dataset.from_generator(
-        ValidationSet,
-        (tf.float32, tf.float32),
-        (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-    ).batch(BATCH_SIZE, drop_remainder=True)
-    options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
-    TrainSet = TrainSet.with_options(options)
-    ValSet = ValSet.with_options(options)
-
-    train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
-    val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
-
-    base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
-    model = tasm.DeepLabV3plus(n_classes=N_CLASSES, base_model=base_model, output_layers=layers, backbone_trainable=True)
+    # base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
+    model = tasm.DeeplabV3_plus(N_CLASSES,HEIGHT,WIDTH)
 
     for layer in model.layers:
         layer.trainable = True
