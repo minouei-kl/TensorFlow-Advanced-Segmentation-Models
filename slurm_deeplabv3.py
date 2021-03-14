@@ -23,32 +23,18 @@ x_test_dir = os.path.join(DATA_DIR, 'images/val')
 y_test_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 
-"""## Data Augmentation Functions"""
-
-def get_validation_augmentation(height, width):
-    """Add paddings to make image shape divisible by 32"""
-    test_transform = [
-        A.LongestMaxSize(max_size=height),
-        A.PadIfNeeded(height, width),
-        # A.Resize(height, width, always_apply=True)
-    ]
-    return A.Compose(test_transform)
-
-
-"""## Define some global variables"""
 
 TOTAL_CLASSES = ['background', 'headerlogo', 'twocoltabel', 'recieveraddress', 'text', 'senderaddress', 'ortdatum',
- 'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext', 'signatureimage', 'fulltabletyp3', 'unlabelled']
-
+ 'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext', 'signatureimage', 'fulltabletyp3']
 
 MODEL_CLASSES = TOTAL_CLASSES
-ALL_CLASSES = False
-if MODEL_CLASSES == TOTAL_CLASSES:
-    MODEL_CLASSES = MODEL_CLASSES[:-1]
-    ALL_CLASSES = True
+# ALL_CLASSES = False
+# if MODEL_CLASSES == TOTAL_CLASSES:
+#     MODEL_CLASSES = MODEL_CLASSES[:-1]
+#     ALL_CLASSES = True
 
 BATCH_SIZE = 24
-N_CLASSES = 16
+N_CLASSES = 15
 HEIGHT = 704
 WIDTH = 704
 BACKBONE_NAME = "efficientnetb3"
@@ -79,7 +65,7 @@ def create_image_label_path_generator(images_dir, masks_dir):
             yield [images_fps[i], masks_fps[i]]
 
 
-def process_image_label(images_paths, masks_paths, classes, augmentation=None, preprocessing=None):
+def process_image_label(images_paths, masks_paths, classes):
     class_values = [TOTAL_CLASSES.index(cls.lower()) for cls in classes]
     
     # read data
@@ -92,34 +78,22 @@ def process_image_label(images_paths, masks_paths, classes, augmentation=None, p
     mask = np.stack(masks, axis=-1).astype('float')
     
     # add background if mask is not binary
-    if mask.shape[-1] != 1:
-        background = 1 - mask.sum(axis=-1, keepdims=True)
-        mask = np.concatenate((mask, background), axis=-1)
-    
-    # apply augmentations
-    if augmentation:
-        sample = augmentation(image=image, mask=mask)
-        image, mask = sample['image'], sample['mask']
-    
-    # apply preprocessing
-    if preprocessing:
-        sample = preprocessing(image=image, mask=mask)
-        image, mask = sample['image'], sample['mask']
+    # if mask.shape[-1] != 1:
+    #     background = 1 - mask.sum(axis=-1, keepdims=True)
+    #     mask = np.concatenate((mask, background), axis=-1)
 
-    # mask = np.squeeze(np.argmax(mask, axis=-1))
-    # mask = np.argmax(mask, axis=-1)
-    # mask = mask[..., np.newaxis]
-        
+    image = tf.image.resize_with_pad(image,HEIGHT,WIDTH)
+    mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH)
     return image, mask
 
-def DataGenerator(train_dir, label_dir, height, width, classes, augmentation):
+def DataGenerator(train_dir, label_dir, height, width, classes):
     image_label_path_generator = create_image_label_path_generator(
         train_dir, label_dir)
     while True:
         images = np.zeros(shape=[height, width, 3])
         labels = np.zeros(shape=[height, width, len(classes) + 1], dtype=np.float32)
         image_path, label_path = next(image_label_path_generator)
-        image, label = process_image_label(image_path, label_path, classes=classes, augmentation=augmentation)
+        image, label = process_image_label(image_path, label_path, classes=classes)
         images , labels  = image, label
         yield tf.convert_to_tensor(images), tf.convert_to_tensor(labels, tf.float32)
 
@@ -130,7 +104,6 @@ TrainSetwoAug = partial(DataGenerator,
     HEIGHT,
     WIDTH,
     classes=MODEL_CLASSES,
-    augmentation=get_validation_augmentation(height=HEIGHT, width=WIDTH),
 )
 
 ValidationSet =partial(DataGenerator,
@@ -139,7 +112,6 @@ ValidationSet =partial(DataGenerator,
     HEIGHT,
     WIDTH,
     classes=MODEL_CLASSES,
-    augmentation=get_validation_augmentation(height=HEIGHT, width=WIDTH),
 )
 
 
@@ -164,13 +136,13 @@ TrainSet = tf.data.Dataset.from_generator(
     TrainSetwoAug,
     (tf.float32, tf.float32),
     (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-).batch(BATCH_SIZE, drop_remainder=True)
+).batch(BATCH_SIZE, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
 
 ValSet = tf.data.Dataset.from_generator(
     ValidationSet,
     (tf.float32, tf.float32),
     (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-).batch(BATCH_SIZE, drop_remainder=True)
+).batch(BATCH_SIZE, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
 options = tf.data.Options()
 options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
 TrainSet = TrainSet.with_options(options)
