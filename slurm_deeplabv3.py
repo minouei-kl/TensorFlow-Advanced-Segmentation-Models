@@ -33,7 +33,7 @@ MODEL_CLASSES = TOTAL_CLASSES
 #     MODEL_CLASSES = MODEL_CLASSES[:-1]
 #     ALL_CLASSES = True
 
-BATCH_SIZE = 32
+BATCH_SIZE = 24
 N_CLASSES = 15
 HEIGHT = 704
 WIDTH = 704
@@ -170,22 +170,26 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
-callbacks = [
-             tf.keras.callbacks.ModelCheckpoint("new/DeepLabV3plus.ckpt", verbose=1, save_weights_only=True, save_best_only=True),
-            #  tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
-             tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
-             tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
-]
+    checkpoint_dir = './training_checkpoints'
+    # Name of the checkpoint files
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
-steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
+    callbacks = [
+                tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+                tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, verbose=1, save_weights_only=True),
+                tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
+                tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
+    ]
 
-history = model.fit(
-    train_dist_dataset,
-    steps_per_epoch=steps_per_epoch,
-    epochs=2,
-    callbacks=callbacks,
-    validation_data=val_dist_dataset,
-    validation_steps=len(os.listdir(x_valid_dir)),
-    )
+    steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 
-model.save("model1.h5")
+    model.fit(
+        train_dist_dataset,
+        steps_per_epoch=steps_per_epoch,
+        epochs=2,
+        callbacks=callbacks,
+        validation_data=val_dist_dataset,
+        validation_steps=len(os.listdir(x_valid_dir)),
+        )
+
+    model.save("model1.h5")
