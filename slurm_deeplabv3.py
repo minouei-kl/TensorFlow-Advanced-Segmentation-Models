@@ -192,4 +192,4 @@ with mirrored_strategy.scope():
         validation_steps=len(os.listdir(x_valid_dir)),
         )
 
-    model.save("model1.h5")
+    model.save(checkpoint_dir+"/model1.h5")
