@@ -175,26 +175,26 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
-    checkpoint_dir = './704'
-    # Name of the checkpoint files
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+checkpoint_dir = './704'
+# Name of the checkpoint files
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
-    callbacks = [
-                tf.keras.callbacks.TensorBoard(log_dir='./logs'),
-                tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, verbose=1, save_weights_only=True),
-                tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
-                tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
-    ]
+callbacks = [
+            tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+            tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, verbose=1, save_weights_only=True),
+            tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
+            tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
+]
 
-    steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
+steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 
-    model.fit(
-        train_dist_dataset,
-        steps_per_epoch=steps_per_epoch,
-        epochs=2,
-        callbacks=callbacks,
-        validation_data=val_dist_dataset,
-        validation_steps=len(os.listdir(x_valid_dir)),
-        )
+model.fit(
+    train_dist_dataset,
+    steps_per_epoch=steps_per_epoch,
+    epochs=2,
+    callbacks=callbacks,
+    validation_data=val_dist_dataset,
+    validation_steps=len(os.listdir(x_valid_dir)),
+    )
 
-    model.save(checkpoint_dir+"/704model.h5")
+model.save(checkpoint_dir+"/704model.h5")
