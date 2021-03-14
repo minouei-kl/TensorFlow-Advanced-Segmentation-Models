@@ -8,6 +8,7 @@ import albumentations as A
 import matplotlib.pyplot as plt
 import tensorflow.keras.backend as K
 from functools import partial
+from tensorflow.keras import mixed_precision
 
 DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
@@ -36,7 +37,7 @@ MODEL_CLASSES = TOTAL_CLASSES
 BATCH_SIZE = 24
 N_CLASSES = 15
 HEIGHT = 704
-WIDTH = 704
+WIDTH = 512
 BACKBONE_NAME = "efficientnetb3"
 WEIGHTS = "imagenet"
 WWO_AUG = False # train data with and without augmentation
@@ -82,8 +83,8 @@ def process_image_label(images_paths, masks_paths, classes):
     #     background = 1 - mask.sum(axis=-1, keepdims=True)
     #     mask = np.concatenate((mask, background), axis=-1)
 
-    image = tf.image.resize_with_pad(image,HEIGHT,WIDTH)
-    mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH)
+    image = tf.image.resize(image,(HEIGHT,WIDTH))
+    mask = tf.image.resize(mask,(HEIGHT,WIDTH))
     return image, mask
 
 def DataGenerator(train_dir, label_dir, height, width, classes):
@@ -122,10 +123,10 @@ ValidationSet =partial(DataGenerator,
 # )
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
-communication_options = tf.distribute.experimental.CommunicationOptions(
-            implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
-mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver
-                                                        ,communication_options=communication_options)
+# communication_options = tf.distribute.experimental.CommunicationOptions(
+#             implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver)
+                                                        # ,communication_options=communication_options)
 
 
 
@@ -152,6 +153,8 @@ train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
 val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
 
 with mirrored_strategy.scope():
+    pmixed_precision.set_global_policy('mixed_float16')
+
     # base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
     model = tasm.DeeplabV3_plus(N_CLASSES,HEIGHT,WIDTH)
 
@@ -170,7 +173,7 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
-    checkpoint_dir = './training_checkpoints'
+    checkpoint_dir = './704512'
     # Name of the checkpoint files
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
@@ -192,4 +195,4 @@ with mirrored_strategy.scope():
         validation_steps=len(os.listdir(x_valid_dir)),
         )
 
-    model.save(checkpoint_dir+"/model1.h5")
+    model.save(checkpoint_dir+"/704512model.h5")
