@@ -153,7 +153,7 @@ train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
 val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
 
 with mirrored_strategy.scope():
-    pmixed_precision.set_global_policy('mixed_float16')
+    mixed_precision.set_global_policy('mixed_float16')
 
     # base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
     model = tasm.DeeplabV3_plus(N_CLASSES,HEIGHT,WIDTH)
