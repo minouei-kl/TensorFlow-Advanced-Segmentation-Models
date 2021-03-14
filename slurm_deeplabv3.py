@@ -26,18 +26,19 @@ y_test_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 
 TOTAL_CLASSES = ['background', 'headerlogo', 'twocoltabel', 'recieveraddress', 'text', 'senderaddress', 'ortdatum',
- 'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext', 'signatureimage', 'fulltabletyp3']
+ 'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext', 'signatureimage', 'fulltabletyp3', 'unlabelled']
+
 
 MODEL_CLASSES = TOTAL_CLASSES
-# ALL_CLASSES = False
-# if MODEL_CLASSES == TOTAL_CLASSES:
-#     MODEL_CLASSES = MODEL_CLASSES[:-1]
-#     ALL_CLASSES = True
+ALL_CLASSES = False
+if MODEL_CLASSES == TOTAL_CLASSES:
+    MODEL_CLASSES = MODEL_CLASSES[:-1]
+    ALL_CLASSES = True
 
 BATCH_SIZE = 24
-N_CLASSES = 15
+N_CLASSES = 16
 HEIGHT = 704
-WIDTH = 512
+WIDTH = 704
 BACKBONE_NAME = "efficientnetb3"
 WEIGHTS = "imagenet"
 WWO_AUG = False # train data with and without augmentation
@@ -77,14 +78,15 @@ def process_image_label(images_paths, masks_paths, classes):
     # extract certain classes from mask (e.g. cars)
     masks = [(mask == v) for v in class_values]
     mask = np.stack(masks, axis=-1).astype('float')
-    
-    # add background if mask is not binary
-    # if mask.shape[-1] != 1:
-    #     background = 1 - mask.sum(axis=-1, keepdims=True)
-    #     mask = np.concatenate((mask, background), axis=-1)
 
-    image = tf.image.resize(image,(HEIGHT,WIDTH))
-    mask = tf.image.resize(mask,(HEIGHT,WIDTH))
+    image = tf.image.resize_with_pad(image,HEIGHT,WIDTH)
+    mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH)
+
+    # add background if mask is not binary
+    if mask.shape[-1] != 1:
+        background = 1 - mask.sum(axis=-1, keepdims=True)
+        mask = np.concatenate((mask, background), axis=-1)
+
     return image, mask
 
 def DataGenerator(train_dir, label_dir, height, width, classes):
@@ -173,7 +175,7 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
-    checkpoint_dir = './704512'
+    checkpoint_dir = './704'
     # Name of the checkpoint files
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
@@ -195,4 +197,4 @@ with mirrored_strategy.scope():
         validation_steps=len(os.listdir(x_valid_dir)),
         )
 
-    model.save(checkpoint_dir+"/704512model.h5")
+    model.save(checkpoint_dir+"/704model.h5")
