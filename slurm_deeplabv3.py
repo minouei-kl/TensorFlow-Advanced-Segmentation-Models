@@ -79,8 +79,8 @@ def process_image_label(images_paths, masks_paths, classes):
     masks = [(mask == v) for v in class_values]
     mask = np.stack(masks, axis=-1).astype('float')
 
-    image = tf.image.resize_with_pad(image,HEIGHT,WIDTH)
-    mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH)
+    image = tf.image.resize_with_pad(image,HEIGHT,WIDTH).numpy()
+    mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH).numpy()
 
     # add background if mask is not binary
     if mask.shape[-1] != 1:
@@ -125,10 +125,10 @@ ValidationSet =partial(DataGenerator,
 # )
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
-communication_options = tf.distribute.experimental.CommunicationOptions(
-            implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
-mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver
-                                                        ,communication_options=communication_options)
+# communication_options = tf.distribute.experimental.CommunicationOptions(
+#             implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver)
+                                                        # ,communication_options=communication_options)
 
 
 
@@ -175,26 +175,26 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
-checkpoint_dir = './704'
-# Name of the checkpoint files
-checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+    checkpoint_dir = './704'
+    # Name of the checkpoint files
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 
-callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir='./logs'),
-            tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, verbose=1, save_weights_only=True),
-            tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
-            tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
-]
+    callbacks = [
+                tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+                tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, verbose=1, save_weights_only=True),
+                tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
+                tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
+    ]
 
-steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
+    steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 
-model.fit(
-    train_dist_dataset,
-    steps_per_epoch=steps_per_epoch,
-    epochs=2,
-    callbacks=callbacks,
-    validation_data=val_dist_dataset,
-    validation_steps=len(os.listdir(x_valid_dir)),
-    )
+    model.fit(
+        train_dist_dataset,
+        steps_per_epoch=steps_per_epoch,
+        epochs=2,
+        callbacks=callbacks,
+        validation_data=val_dist_dataset,
+        validation_steps=len(os.listdir(x_valid_dir)),
+        )
 
-model.save(checkpoint_dir+"/704model.h5")
+    model.save(checkpoint_dir+"/704model.h5")
