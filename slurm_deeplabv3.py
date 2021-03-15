@@ -39,9 +39,6 @@ BATCH_SIZE = 24
 N_CLASSES = 16
 HEIGHT = 704
 WIDTH = 704
-BACKBONE_NAME = "efficientnetb3"
-WEIGHTS = "imagenet"
-WWO_AUG = False # train data with and without augmentation
 
 
 """## Data Generation Functions"""
@@ -101,6 +98,24 @@ def DataGenerator(train_dir, label_dir, height, width, classes):
         yield tf.convert_to_tensor(images), tf.convert_to_tensor(labels, tf.float32)
 
 
+def _is_chief(task_type, task_id):
+    """Determines if the replica is the Chief."""
+    return task_type is None or task_type == 'chief' or (
+        task_type == 'worker' and task_id == 0)
+
+
+def _get_saved_model_dir(base_path, task_type, task_id):
+    """Returns a location for the SavedModel."""
+
+    saved_model_path = base_path
+    if not _is_chief(task_type, task_id):
+        temp_dir = os.path.join('/tmp', task_type, str(task_id))
+        tf.io.gfile.makedirs(temp_dir)
+        saved_model_path = temp_dir
+
+    return saved_model_path
+
+
 TrainSetwoAug = partial(DataGenerator,
     x_train_dir,
     y_train_dir,
@@ -109,47 +124,39 @@ TrainSetwoAug = partial(DataGenerator,
     classes=MODEL_CLASSES,
 )
 
-ValidationSet =partial(DataGenerator,
-    x_valid_dir,
-    y_valid_dir,
-    HEIGHT,
-    WIDTH,
-    classes=MODEL_CLASSES,
-)
-
-
-
-# mirrored_strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy(
-#     cluster_resolver=tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000),
-#     communication=tf.distribute.experimental.CollectiveCommunication.NCCL,
+# ValidationSet =partial(DataGenerator,
+#     x_valid_dir,
+#     y_valid_dir,
+#     HEIGHT,
+#     WIDTH,
+#     classes=MODEL_CLASSES,
 # )
+
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
 mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver)
 
-
-
-
 print('----------------------mirrored_strategy.num_replicas_in_sync')
 print(mirrored_strategy.num_replicas_in_sync)
+
 TrainSet = tf.data.Dataset.from_generator(
     TrainSetwoAug,
     (tf.float32, tf.float32),
     (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
 ).batch(BATCH_SIZE, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
 
-ValSet = tf.data.Dataset.from_generator(
-    ValidationSet,
-    (tf.float32, tf.float32),
-    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
-).batch(BATCH_SIZE, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+# ValSet = tf.data.Dataset.from_generator(
+#     ValidationSet,
+#     (tf.float32, tf.float32),
+#     (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+# ).batch(BATCH_SIZE, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
 options = tf.data.Options()
 options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
 TrainSet = TrainSet.with_options(options)
-ValSet = ValSet.with_options(options)
+# ValSet = ValSet.with_options(options)
 
 train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
-val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
+# val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
 
 with mirrored_strategy.scope():
     # mixed_precision.set_global_policy('mixed_float16')
@@ -172,26 +179,37 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
-checkpoint_dir = './704'
-# Name of the checkpoint files
-checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+# learning rate schedule
+def step_decay(epoch):
+	initial_lrate = 0.1
+	drop = 0.5
+	epochs_drop = 1.0
+	lrate = initial_lrate * math.pow(drop, math.floor((1+epoch)/epochs_drop))
+	return lrate
+
 
 callbacks = [
             tf.keras.callbacks.TensorBoard(log_dir='./logs'),
-            tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, verbose=1, save_weights_only=True),
-            tf.keras.callbacks.ReduceLROnPlateau(monitor="val_iou_score", factor=0.2, patience=6, verbose=1, mode="max"),
-            tf.keras.callbacks.EarlyStopping(monitor="val_iou_score", patience=16, mode="max", verbose=1, restore_best_weights=True)
+            tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
+            tf.keras.callbacks.LearningRateScheduler(step_decay)
 ]
 
 steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 
+latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
+checkpoint.restore(latest_checkpoint)
+
 model.fit(
     train_dist_dataset,
     steps_per_epoch=steps_per_epoch,
-    epochs=2,
+    epochs=4,
     callbacks=callbacks,
-    validation_data=val_dist_dataset,
-    validation_steps=len(os.listdir(x_valid_dir)),
+    # validation_data=val_dist_dataset,
+    # validation_steps=len(os.listdir(x_valid_dir)),
     )
 
-model.save(checkpoint_dir+"/704model.h5")
+saved_model_dir='trained_model'
+logging.info("Saving the trained model to: {}".format(saved_model_path))
+saved_model_dir = _get_saved_model_dir(saved_model_path, task_type, task_id)
+model.save(saved_model_dir)
+
