@@ -35,7 +35,7 @@ if MODEL_CLASSES == TOTAL_CLASSES:
     MODEL_CLASSES = MODEL_CLASSES[:-1]
     ALL_CLASSES = True
 
-BATCH_SIZE = 16
+BATCH_SIZE = 24
 N_CLASSES = 16
 HEIGHT = 704
 WIDTH = 704
@@ -125,10 +125,7 @@ ValidationSet =partial(DataGenerator,
 # )
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
-communication_options = tf.distribute.experimental.CommunicationOptions(
-            implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
-mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver
-                                                        ,communication_options=communication_options)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver)
 
 
 
@@ -155,7 +152,7 @@ train_dist_dataset = mirrored_strategy.experimental_distribute_dataset(TrainSet)
 val_dist_dataset = mirrored_strategy.experimental_distribute_dataset(ValSet)
 
 with mirrored_strategy.scope():
-    mixed_precision.set_global_policy('mixed_float16')
+    # mixed_precision.set_global_policy('mixed_float16')
 
     # base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
     model = tasm.DeeplabV3_plus(N_CLASSES,HEIGHT,WIDTH)
