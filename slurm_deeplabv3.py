@@ -125,10 +125,10 @@ ValidationSet =partial(DataGenerator,
 # )
 
 slurm_resolver = tf.distribute.cluster_resolver.SlurmClusterResolver(port_base=15000)
-# communication_options = tf.distribute.experimental.CommunicationOptions(
-#             implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
-mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver)
-                                                        # ,communication_options=communication_options)
+communication_options = tf.distribute.experimental.CommunicationOptions(
+            implementation=tf.distribute.experimental.CommunicationImplementation.AUTO)
+mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy(cluster_resolver=slurm_resolver
+                                                        ,communication_options=communication_options)
 
 
 
