@@ -13,10 +13,10 @@ import math
 
 DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
-x_train_dir = os.path.join(DATA_DIR, 'images/train')
-y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
-# x_train_dir = os.path.join(DATA_DIR, 'images/val')
-# y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
+# x_train_dir = os.path.join(DATA_DIR, 'images/train')
+# y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
+x_train_dir = os.path.join(DATA_DIR, 'images/val')
+y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 x_valid_dir = os.path.join(DATA_DIR, 'images/val')
 y_valid_dir = os.path.join(DATA_DIR, 'annotations/val')
@@ -24,11 +24,9 @@ y_valid_dir = os.path.join(DATA_DIR, 'annotations/val')
 x_test_dir = os.path.join(DATA_DIR, 'images/val')
 y_test_dir = os.path.join(DATA_DIR, 'annotations/val')
 
-
-
 TOTAL_CLASSES = ['background', 'headerlogo', 'twocoltabel', 'recieveraddress', 'text', 'senderaddress', 'ortdatum',
- 'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext', 'signatureimage', 'fulltabletyp3', 'unlabelled']
-
+                 'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext',
+                 'signatureimage', 'fulltabletyp3', 'unlabelled']
 
 MODEL_CLASSES = TOTAL_CLASSES
 ALL_CLASSES = False
@@ -41,17 +39,18 @@ N_CLASSES = 16
 HEIGHT = 576
 WIDTH = 576
 
-
 """## Data Generation Functions"""
+
 
 ################################################################################
 # Data Generator
 ################################################################################
 def get_filtered(dir):
-    included_extensions = ['jpg','jpeg', 'png',]
+    included_extensions = ['jpg', 'jpeg', 'png', ]
     file_names = [fn for fn in os.listdir(dir)
-                if any(fn.endswith(ext) for ext in included_extensions)]
+                  if any(fn.endswith(ext) for ext in included_extensions)]
     return sorted(file_names)
+
 
 def create_image_label_path_generator(images_dir, masks_dir):
     ids = get_filtered(images_dir)
@@ -67,14 +66,14 @@ def create_image_label_path_generator(images_dir, masks_dir):
 
 def process_image_label(images_paths, masks_paths, classes):
     class_values = [TOTAL_CLASSES.index(cls.lower()) for cls in classes]
-    
+
     # read data
     image = cv2.imread(images_paths)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     mask = cv2.imread(masks_paths, 0)
 
-    image = cv2.resize(image, (HEIGHT,WIDTH), interpolation = cv2.INTER_AREA)
-    mask = cv2.resize(mask, (HEIGHT,WIDTH), interpolation = cv2.INTER_AREA)
+    image = cv2.resize(image, (HEIGHT, WIDTH), interpolation=cv2.INTER_AREA)
+    mask = cv2.resize(mask, (HEIGHT, WIDTH), interpolation=cv2.INTER_AREA)
 
     # extract certain classes from mask (e.g. cars)
     masks = [(mask == v) for v in class_values]
@@ -90,6 +89,7 @@ def process_image_label(images_paths, masks_paths, classes):
 
     return image, mask
 
+
 def DataGenerator(train_dir, label_dir, height, width, classes):
     image_label_path_generator = create_image_label_path_generator(
         train_dir, label_dir)
@@ -98,35 +98,37 @@ def DataGenerator(train_dir, label_dir, height, width, classes):
         labels = np.zeros(shape=[height, width, len(classes) + 1], dtype=np.float32)
         image_path, label_path = next(image_label_path_generator)
         image, label = process_image_label(image_path, label_path, classes=classes)
-        images , labels  = image, label
+        images, labels = image, label
         yield tf.convert_to_tensor(images), tf.convert_to_tensor(labels, tf.float32)
 
 
 def _is_chief(task_type, task_id):
-    """Determines if the replica is the Chief."""
-    return task_type is None or task_type == 'chief' or (
-        task_type == 'worker' and task_id == 0)
+    return task_type is None or task_type == 'chief' or (task_type == 'worker' and
+                                                         task_id == 0)
 
 
-def _get_saved_model_dir(base_path, task_type, task_id):
-    """Returns a location for the SavedModel."""
+def _get_temp_dir(dirpath, task_id):
+    base_dirpath = 'workertemp_' + str(task_id)
+    temp_dir = os.path.join(dirpath, base_dirpath)
+    tf.io.gfile.makedirs(temp_dir)
+    return temp_dir
 
-    saved_model_path = base_path
+
+def write_filepath(filepath, task_type, task_id):
+    dirpath = os.path.dirname(filepath)
+    base = os.path.basename(filepath)
     if not _is_chief(task_type, task_id):
-        temp_dir = os.path.join('/tmp', task_type, str(task_id))
-        tf.io.gfile.makedirs(temp_dir)
-        saved_model_path = temp_dir
-
-    return saved_model_path
+        dirpath = _get_temp_dir(dirpath, task_id)
+    return os.path.join(dirpath, base)
 
 
 TrainSetwoAug = partial(DataGenerator,
-    x_train_dir,
-    y_train_dir,
-    HEIGHT,
-    WIDTH,
-    classes=MODEL_CLASSES,
-)
+                        x_train_dir,
+                        y_train_dir,
+                        HEIGHT,
+                        WIDTH,
+                        classes=MODEL_CLASSES,
+                        )
 
 # ValidationSet =partial(DataGenerator,
 #     x_valid_dir,
@@ -146,7 +148,7 @@ print(mirrored_strategy.num_replicas_in_sync)
 TrainSet = tf.data.Dataset.from_generator(
     TrainSetwoAug,
     (tf.float32, tf.float32),
-    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None,N_CLASSES]))
+    (tf.TensorShape([None, None, 3]), tf.TensorShape([None, None, N_CLASSES]))
 ).batch(BATCH_SIZE, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
 
 # ValSet = tf.data.Dataset.from_generator(
@@ -166,7 +168,7 @@ with mirrored_strategy.scope():
     # mixed_precision.set_global_policy('mixed_float16')
 
     # base_model, layers, layer_names = tasm.create_base_model(name=BACKBONE_NAME, weights=WEIGHTS, height=HEIGHT, width=WIDTH, include_top=False, pooling=None)
-    model = tasm.DeeplabV3_plus(N_CLASSES,HEIGHT,WIDTH)
+    model = tasm.DeeplabV3_plus(N_CLASSES, HEIGHT, WIDTH)
 
     for layer in model.layers:
         layer.trainable = True
@@ -183,19 +185,35 @@ with mirrored_strategy.scope():
     )
     model.run_eagerly = False
 
+
 # learning rate schedule
 def step_decay(epoch):
-	initial_lrate = 0.1
-	drop = 0.5
-	epochs_drop = 1.0
-	lrate = initial_lrate * math.pow(drop, math.floor((1+epoch)/epochs_drop))
-	return lrate
+    initial_lrate = 0.1
+    drop = 0.5
+    epochs_drop = 1.0
+    lrate = initial_lrate * math.pow(drop, math.floor((1 + epoch) / epochs_drop))
+    return lrate
 
+
+task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
+                      mirrored_strategy.cluster_resolver.task_id)
+
+checkpoint = tf.train.Checkpoint(model=model)
+write_checkpoint_dir = write_filepath('checkpoint_dir', task_type, task_id)
+checkpoint_manager = tf.train.CheckpointManager(
+  checkpoint, directory=write_checkpoint_dir, max_to_keep=1)
+
+# checkpoint_manager.save()
+if not _is_chief(task_type, task_id):
+    tf.io.gfile.rmtree(write_checkpoint_dir)
+
+# latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
+# checkpoint.restore(latest_checkpoint)
 
 callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir='./logs'),
-            tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
-            tf.keras.callbacks.LearningRateScheduler(step_decay)
+    tf.keras.callbacks.TensorBoard(log_dir='./logs'),checkpoint_manager,
+    tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='backup'),
+    tf.keras.callbacks.LearningRateScheduler(step_decay)
 ]
 
 steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
@@ -210,10 +228,9 @@ model.fit(
     callbacks=callbacks,
     # validation_data=val_dist_dataset,
     # validation_steps=len(os.listdir(x_valid_dir)),
-    )
+)
 
-saved_model_dir='trained_model'
-logging.info("Saving the trained model to: {}".format(saved_model_path))
-saved_model_dir = _get_saved_model_dir(saved_model_path, task_type, task_id)
+saved_model_dir = write_filepath('model_path', task_type, task_id)
 model.save(saved_model_dir)
-
+if not _is_chief(task_type, task_id):
+    tf.io.gfile.rmtree(os.path.dirname(write_model_path))
