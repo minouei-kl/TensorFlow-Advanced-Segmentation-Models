@@ -36,8 +36,8 @@ if MODEL_CLASSES == TOTAL_CLASSES:
 
 BATCH_SIZE = 32
 N_CLASSES = 16
-HEIGHT = 576
-WIDTH = 576
+HEIGHT = 640
+WIDTH = 640
 
 """## Data Generation Functions"""
 
@@ -181,20 +181,18 @@ with mirrored_strategy.scope():
         loss=categorical_focal_dice_loss,
         metrics=metrics,
     )
-    model.run_eagerly = False
+    # model.run_eagerly = False
 
 
 # learning rate schedule
 def step_decay(epoch):
     initial_lrate = 0.1
     drop = 0.5
-    epochs_drop = 1.0
+    epochs_drop = 2.0
     lrate = initial_lrate * math.pow(drop, math.floor((1 + epoch) / epochs_drop))
     return lrate
 
 
-task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
-                      mirrored_strategy.cluster_resolver.task_id)
 callbacks = [
     tf.keras.callbacks.TensorBoard(log_dir='./logs'),
     tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
@@ -203,17 +201,18 @@ callbacks = [
 
 steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 
-# latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
-# checkpoint.restore(latest_checkpoint)
 
 model.fit(
     train_dist_dataset,
     steps_per_epoch=steps_per_epoch,
-    epochs=4,
+    epochs=6,
     callbacks=callbacks,
     # validation_data=val_dist_dataset,
     # validation_steps=len(os.listdir(x_valid_dir)),
 )
+
+task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
+                      mirrored_strategy.cluster_resolver.task_id)
 
 saved_model_dir = _get_saved_model_dir('saved_model_path', task_type, task_id)
 model.save(saved_model_dir)
