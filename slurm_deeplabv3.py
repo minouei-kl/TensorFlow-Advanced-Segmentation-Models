@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import tensorflow.keras.backend as K
 from functools import partial
 from tensorflow.keras import mixed_precision
+import math
 
 DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
