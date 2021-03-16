@@ -1,3 +1,3 @@
 pip install git+file:///netscratch/minouei/report/tf/TensorFlow-Advanced-Segmentation-Models
-mv /usr/local/lib/python3.8/dist-packages/cv2/cv2.cpython-38-x86_64-linux-gnu.so cv2.so
+export LD_LIBRARY_PATH=/usr/local/lib/python3.8/dist-packages/opencv_python_headless.libs:$LD_LIBRARY_PATH
 python slurm_deeplabv3.py
