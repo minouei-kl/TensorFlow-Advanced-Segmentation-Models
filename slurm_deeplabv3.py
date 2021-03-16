@@ -13,10 +13,10 @@ import math
 
 DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
-# x_train_dir = os.path.join(DATA_DIR, 'images/train')
-# y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
-x_train_dir = os.path.join(DATA_DIR, 'images/val')
-y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
+x_train_dir = os.path.join(DATA_DIR, 'images/train')
+y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
+# x_train_dir = os.path.join(DATA_DIR, 'images/val')
+# y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 x_valid_dir = os.path.join(DATA_DIR, 'images/val')
 y_valid_dir = os.path.join(DATA_DIR, 'annotations/val')
@@ -34,7 +34,7 @@ if MODEL_CLASSES == TOTAL_CLASSES:
     MODEL_CLASSES = MODEL_CLASSES[:-1]
     ALL_CLASSES = True
 
-BATCH_SIZE = 24
+BATCH_SIZE = 32
 N_CLASSES = 16
 HEIGHT = 576
 WIDTH = 576
@@ -103,23 +103,21 @@ def DataGenerator(train_dir, label_dir, height, width, classes):
 
 
 def _is_chief(task_type, task_id):
-    return task_type is None or task_type == 'chief' or (task_type == 'worker' and
-                                                         task_id == 0)
+    """Determines if the replica is the Chief."""
+    return task_type is None or task_type == 'chief' or (
+            task_type == 'worker' and task_id == 0)
 
 
-def _get_temp_dir(dirpath, task_id):
-    base_dirpath = 'workertemp_' + str(task_id)
-    temp_dir = os.path.join(dirpath, base_dirpath)
-    tf.io.gfile.makedirs(temp_dir)
-    return temp_dir
+def _get_saved_model_dir(base_path, task_type, task_id):
+    """Returns a location for the SavedModel."""
 
-
-def write_filepath(filepath, task_type, task_id):
-    dirpath = os.path.dirname(filepath)
-    base = os.path.basename(filepath)
+    saved_model_path = base_path
     if not _is_chief(task_type, task_id):
-        dirpath = _get_temp_dir(dirpath, task_id)
-    return os.path.join(dirpath, base)
+        temp_dir = os.path.join('/tmp', task_type, str(task_id))
+        tf.io.gfile.makedirs(temp_dir)
+        saved_model_path = temp_dir
+
+    return saved_model_path
 
 
 TrainSetwoAug = partial(DataGenerator,
@@ -197,22 +195,9 @@ def step_decay(epoch):
 
 task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
                       mirrored_strategy.cluster_resolver.task_id)
-
-checkpoint = tf.train.Checkpoint(model=model)
-write_checkpoint_dir = write_filepath('checkpoint_dir', task_type, task_id)
-checkpoint_manager = tf.train.CheckpointManager(
-  checkpoint, directory=write_checkpoint_dir, max_to_keep=1)
-
-# checkpoint_manager.save()
-if not _is_chief(task_type, task_id):
-    tf.io.gfile.rmtree(write_checkpoint_dir)
-
-# latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
-# checkpoint.restore(latest_checkpoint)
-
 callbacks = [
-    tf.keras.callbacks.TensorBoard(log_dir='./logs'),checkpoint_manager,
-    tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='backup'),
+    tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+    tf.keras.callbacks.experimental.BackupAndRestore(backup_dir='./backup'),
     tf.keras.callbacks.LearningRateScheduler(step_decay)
 ]
 
@@ -230,7 +215,7 @@ model.fit(
     # validation_steps=len(os.listdir(x_valid_dir)),
 )
 
-saved_model_dir = write_filepath('model_path', task_type, task_id)
+saved_model_dir = _get_saved_model_dir('saved_model_path', task_type, task_id)
 model.save(saved_model_dir)
 if not _is_chief(task_type, task_id):
     tf.io.gfile.rmtree(os.path.dirname(write_model_path))
