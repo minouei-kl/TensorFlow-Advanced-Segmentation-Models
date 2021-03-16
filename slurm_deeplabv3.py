@@ -196,8 +196,8 @@ callbacks = [
 
 steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 
-latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
-checkpoint.restore(latest_checkpoint)
+# latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
+# checkpoint.restore(latest_checkpoint)
 
 model.fit(
     train_dist_dataset,
