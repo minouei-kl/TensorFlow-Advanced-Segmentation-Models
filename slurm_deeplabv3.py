@@ -36,10 +36,10 @@ if MODEL_CLASSES == TOTAL_CLASSES:
     MODEL_CLASSES = MODEL_CLASSES[:-1]
     ALL_CLASSES = True
 
-BATCH_SIZE = 32
+BATCH_SIZE = 24
 N_CLASSES = 16
-HEIGHT = 704
-WIDTH = 704
+HEIGHT = 576
+WIDTH = 576
 
 
 """## Data Generation Functions"""
@@ -73,12 +73,15 @@ def process_image_label(images_paths, masks_paths, classes):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     mask = cv2.imread(masks_paths, 0)
 
+    image = cv2.resize(image, (HEIGHT,WIDTH), interpolation = cv2.INTER_AREA)
+    mask = cv2.resize(mask, (HEIGHT,WIDTH), interpolation = cv2.INTER_AREA)
+
     # extract certain classes from mask (e.g. cars)
     masks = [(mask == v) for v in class_values]
     mask = np.stack(masks, axis=-1).astype('float')
 
-    image = tf.image.resize_with_pad(image,HEIGHT,WIDTH).numpy()
-    mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH).numpy()
+    # image = tf.image.resize_with_pad(image,HEIGHT,WIDTH).numpy()
+    # mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH).numpy()
 
     # add background if mask is not binary
     if mask.shape[-1] != 1:
