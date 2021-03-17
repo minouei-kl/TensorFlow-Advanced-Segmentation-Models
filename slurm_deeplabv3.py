@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from time import time
 import tensorflow as tf
-# import albumentations as A
+import albumentations as A
 import matplotlib.pyplot as plt
 import tensorflow.keras.backend as K
 from functools import partial
@@ -26,16 +26,17 @@ y_test_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 TOTAL_CLASSES = ['background', 'headerlogo', 'twocoltabel', 'recieveraddress', 'text', 'senderaddress', 'ortdatum',
                  'companyinfo', 'fulltabletyp1', 'fulltabletyp2', 'copylogo', 'footerlogo', 'footertext',
-                 'signatureimage', 'fulltabletyp3', 'unlabelled']
+                 'signatureimage', 'fulltabletyp3']
 
 MODEL_CLASSES = TOTAL_CLASSES
-ALL_CLASSES = False
-if MODEL_CLASSES == TOTAL_CLASSES:
-    MODEL_CLASSES = MODEL_CLASSES[:-1]
-    ALL_CLASSES = True
+# ALL_CLASSES = False
+# if MODEL_CLASSES == TOTAL_CLASSES:
+#     MODEL_CLASSES = MODEL_CLASSES[:-1]
+#     ALL_CLASSES = True
+ALL_CLASSES = True
 
-BATCH_SIZE = 16
-N_CLASSES = 16
+BATCH_SIZE = 12
+N_CLASSES = 15
 HEIGHT = 640
 WIDTH = 640
 
@@ -64,7 +65,16 @@ def create_image_label_path_generator(images_dir, masks_dir):
             yield [images_fps[i], masks_fps[i]]
 
 
-def process_image_label(images_paths, masks_paths, classes):
+def get_validation_augmentation(height, width):
+    """Add paddings to make image shape divisible by 32"""
+    test_transform = [
+        A.PadIfNeeded(height, width),
+        A.Resize(height, width, always_apply=True)
+    ]
+    return A.Compose(test_transform)
+
+
+def process_image_label(images_paths, masks_paths, classes, augmentation=None, preprocessing=None):
     class_values = [TOTAL_CLASSES.index(cls.lower()) for cls in classes]
 
     # read data
@@ -72,20 +82,19 @@ def process_image_label(images_paths, masks_paths, classes):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     mask = cv2.imread(masks_paths, 0)
 
-    image = cv2.resize(image, (HEIGHT, WIDTH), interpolation=cv2.INTER_AREA)
-    mask = cv2.resize(mask, (HEIGHT, WIDTH), interpolation=cv2.INTER_AREA)
-
     # extract certain classes from mask (e.g. cars)
     masks = [(mask == v) for v in class_values]
     mask = np.stack(masks, axis=-1).astype('float')
 
-    # image = tf.image.resize_with_pad(image,HEIGHT,WIDTH).numpy()
-    # mask = tf.image.resize_with_pad(mask,HEIGHT,WIDTH).numpy()
+    # apply augmentations
+    if augmentation:
+        sample = augmentation(image=image, mask=mask)
+        image, mask = sample['image'], sample['mask']
 
-    # add background if mask is not binary
-    if mask.shape[-1] != 1:
-        background = 1 - mask.sum(axis=-1, keepdims=True)
-        mask = np.concatenate((mask, background), axis=-1)
+    # apply preprocessing
+    if preprocessing:
+        sample = preprocessing(image=image, mask=mask)
+        image, mask = sample['image'], sample['mask']
 
     return image, mask
 
@@ -95,9 +104,9 @@ def DataGenerator(train_dir, label_dir, height, width, classes):
         train_dir, label_dir)
     while True:
         images = np.zeros(shape=[height, width, 3])
-        labels = np.zeros(shape=[height, width, len(classes) + 1], dtype=np.float32)
+        labels = np.zeros(shape=[height, width, len(classes)], dtype=np.float32)
         image_path, label_path = next(image_label_path_generator)
-        image, label = process_image_label(image_path, label_path, classes=classes)
+        image, label = process_image_label(image_path, label_path, classes=classes,augmentation=augmentation)
         images, labels = image, label
         yield tf.convert_to_tensor(images), tf.convert_to_tensor(labels, tf.float32)
 
@@ -126,6 +135,7 @@ TrainSetwoAug = partial(DataGenerator,
                         HEIGHT,
                         WIDTH,
                         classes=MODEL_CLASSES,
+                        augmentation=get_validation_augmentation(height=HEIGHT, width=WIDTH),
                         )
 
 # ValidationSet =partial(DataGenerator,
@@ -216,5 +226,8 @@ task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
 
 saved_model_dir = _get_saved_model_dir('saved_model_path', task_type, task_id)
 model.save(os.path.join(saved_model_dir,'model.h5'))
-if not _is_chief(task_type, task_id):
-    tf.io.gfile.rmtree(os.path.dirname(saved_model_dir))
+try:
+    if not _is_chief(task_type, task_id):
+        tf.io.gfile.rmtree(os.path.dirname(saved_model_dir))
+except:
+    pass
