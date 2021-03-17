@@ -215,6 +215,6 @@ task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
                       mirrored_strategy.cluster_resolver.task_id)
 
 saved_model_dir = _get_saved_model_dir('saved_model_path', task_type, task_id)
-model.save(saved_model_dir)
+model.save(os.path.join(saved_model_dir,'model.h5'))
 if not _is_chief(task_type, task_id):
     tf.io.gfile.rmtree(os.path.dirname(saved_model_dir))
