@@ -13,10 +13,10 @@ import math
 
 DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
-x_train_dir = os.path.join(DATA_DIR, 'images/train')
-y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
-# x_train_dir = os.path.join(DATA_DIR, 'images/val')
-# y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
+# x_train_dir = os.path.join(DATA_DIR, 'images/train')
+# y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
+x_train_dir = os.path.join(DATA_DIR, 'images/val')
+y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 x_valid_dir = os.path.join(DATA_DIR, 'images/val')
 y_valid_dir = os.path.join(DATA_DIR, 'annotations/val')
@@ -34,7 +34,7 @@ if MODEL_CLASSES == TOTAL_CLASSES:
     MODEL_CLASSES = MODEL_CLASSES[:-1]
     ALL_CLASSES = True
 
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 N_CLASSES = 16
 HEIGHT = 640
 WIDTH = 640
@@ -205,7 +205,7 @@ steps_per_epoch = np.floor(len(os.listdir(x_train_dir)) / BATCH_SIZE)
 model.fit(
     train_dist_dataset,
     steps_per_epoch=steps_per_epoch,
-    epochs=6,
+    epochs=1,
     callbacks=callbacks,
     # validation_data=val_dist_dataset,
     # validation_steps=len(os.listdir(x_valid_dir)),
@@ -214,7 +214,7 @@ model.fit(
 task_type, task_id = (mirrored_strategy.cluster_resolver.task_type,
                       mirrored_strategy.cluster_resolver.task_id)
 
-saved_model_dir = _get_saved_model_dir('saved_model_path', task_type, task_id)
+saved_model_dir = _get_saved_model_dir('saved_model_path', task_type, task_id)+'.h5'
 model.save(saved_model_dir)
 if not _is_chief(task_type, task_id):
     tf.io.gfile.rmtree(os.path.dirname(write_model_path))
