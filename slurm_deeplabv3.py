@@ -13,10 +13,10 @@ import math
 
 DATA_DIR = "/netscratch/minouei/versicherung/version2"
 
-# x_train_dir = os.path.join(DATA_DIR, 'images/train')
-# y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
-x_train_dir = os.path.join(DATA_DIR, 'images/val')
-y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
+x_train_dir = os.path.join(DATA_DIR, 'images/train')
+y_train_dir = os.path.join(DATA_DIR, 'annotations/train')
+# x_train_dir = os.path.join(DATA_DIR, 'images/val')
+# y_train_dir = os.path.join(DATA_DIR, 'annotations/val')
 
 x_valid_dir = os.path.join(DATA_DIR, 'images/val')
 y_valid_dir = os.path.join(DATA_DIR, 'annotations/val')
@@ -35,7 +35,7 @@ MODEL_CLASSES = TOTAL_CLASSES
 #     ALL_CLASSES = True
 ALL_CLASSES = True
 
-BATCH_SIZE = 12
+BATCH_SIZE = 16
 N_CLASSES = 15
 HEIGHT = 640
 WIDTH = 640
