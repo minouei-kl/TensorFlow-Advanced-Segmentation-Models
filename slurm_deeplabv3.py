@@ -99,7 +99,7 @@ def process_image_label(images_paths, masks_paths, classes, augmentation=None, p
     return image, mask
 
 
-def DataGenerator(train_dir, label_dir, height, width, classes):
+def DataGenerator(train_dir, label_dir, height, width, classes, augmentation):
     image_label_path_generator = create_image_label_path_generator(
         train_dir, label_dir)
     while True:
